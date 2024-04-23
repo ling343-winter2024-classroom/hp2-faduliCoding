@@ -1,26 +1,212 @@
 ---
-title: "Project 2"
+title: "Demographics of Linguists and Harassment"
 author: "Fadil Al-Husseini"
-format: html
+format: 
+  html:
+      embed-resources: true
 ---
+## Introduction
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
+## Setup
 ```{r}
-1 + 1
+#| code-fold: true
+#| warning: false
+
+# install.packages("tidyverse")
+# install.packages("here")
+# install.packages("gt")
+# install.packages("scales")
+# install.packages("stringr")
+# install.packages("readr")
+
+library("tidyverse")
+library("here")
+library("gt")
+library("scales")
+library("stringr")
+library("readr")
+
+here::i_am("hp2quarto.qmd")
 ```
 
-You can add options to executable code like this 
-
 ```{r}
-#| echo: false
-2 * 2
+#| code-fold: true
+#| warning: false
+# CSV data is read into instance rawData
+rawSurveyData <- read_csv(here("data/survey_of_linguists-r_ladies.csv"))
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+## Codebook
+
+CODEBOOK HERE
+
+# Questions
+
+## What are the highest ten religions that linguists follow?
+
+```{r}
+religionData <- rawSurveyData %>%
+  # Selects the ID and religion columns
+  select(UNIQID, Religion) %>%
+  # Separates the religion data by columns
+  separate_longer_delim(Religion, delim = ",") %>%
+  # Remove no response, prefer not to answer, & You don't
+  filter(Religion != "NR" 
+         & Religion != "Prefer not to answer") %>%
+  filter(!str_detect(Religion, 'You don')) %>%
+  # Group by religion
+  group_by(Religion) %>%
+  # Counts the unique items & arranges it from most to least
+  count(Religion) %>%
+  arrange(desc(n)) %>%
+  # Keeping the top 10 results for graphing
+  filter(n > 7)
+  # Standard deviation data
+religionCount <- religionData %>%
+  mutate(SD_data = sd(religionData$n))
+  
+religionCount$Religion[religionCount$Religion == "Spiritual but not religious"] <- "Spiritual"
+religionCount$Religion[religionCount$Religion == "Latter Day Saints/Mormon"] <- "LDS"
+  # Keeping column names short for graphing
+```
+
+```{r}
+religionCount %>%
+  ggplot(aes(x = reorder(Religion, desc(n)), y = n)) + 
+  geom_bar(stat="identity", fill = "#F9D48D") +
+  labs(
+    title = "Religions of Linguists",
+    
+  )+
+  xlab("Religion") +
+  ylab("Number of Linguists")
+```
+
+## How does sexuality factor into this?
+
+```{r}
+LGBTRData <- rawSurveyData %>%
+  # Selects the ID and religion columns
+  select(UNIQID, Religion, SexOrient_DC) %>%
+  # Separates the religion data by columns
+  separate_longer_delim(Religion, delim = ",") %>%
+  # Remove no response, prefer not to answer, & You don't
+  filter(Religion != "NR" 
+         & Religion != "Prefer not to answer") %>%
+  filter(!str_detect(Religion, 'You don')) %>%
+  # Select for non-hetero
+  filter(SexOrient_DC != "Heterosexual") %>%
+  group_by(Religion) %>%
+  # Counts the unique items & arranges it from most to least
+  count(Religion) %>%
+  arrange(desc(n))
+  
+LGBTReligionData <- LGBTRData %>%
+  mutate(SD_data = sd(LGBTRData$n))
+  
+bothData <- religionCount %>%
+  left_join(LGBTReligionData, by = c("Religion" = "Religion")) %>%
+  filter(!is.na(n.y))
+
+bothData %>%
+  ggplot(mapping = aes(x = Religion, y = n.y))+
+  geom_bar(stat = "identity", fill = "red") +
+  geom_errorbar(aes(ymin = (n.y - SD_data.y), ymax= (n.y+SD_data.y)), width=0.4, colour="green", alpha=0.9, size=1.3)+
+  labs(
+    title = "Religions of Linguists",
+    
+  )+
+  xlab("Religion") +
+  ylab("Number of Linguists")
+
+bothData %>%
+  ggplot(mapping = aes(x = Religion, y = n.x))+
+  geom_bar(stat = "identity", fill = "blue")+
+  geom_errorbar(aes(ymin = (n.x - SD_data.x), ymax= (n.x+SD_data.x)), width=0.4, colour="orange", alpha=0.9, size=1.3)
+```
+
+## How does religion relate to harassment?
+
+```{r}
+biasIncidentData <- rawSurveyData %>%
+  # Filter data
+  filter(!is.na(Bias_incidents)) %>%
+  filter(!is.na(Bias_incidents_target)) %>%
+  filter(Bias_incidents != "NR") %>%
+  filter(Bias_incidents_target != "NR") %>%
+  filter(Religion != "NR"  & Religion != "Prefer not to answer" & Religion != "Prefer not to answer") %>%
+  filter(!str_detect(Religion, 'You don')) %>%
+  # Compute number of respondents in each grouping
+  separate_longer_delim(Religion, delim = ",") %>%
+  group_by(Religion, Bias_incidents, Bias_incidents_target) %>%
+  summarize(num_respondents = n()) %>%
+  ungroup() %>%
+  # Compute number of respondents in overarching grouping
+  group_by(Religion, Bias_incidents_target) %>%
+  mutate(total_respondents = sum(num_respondents)) %>%
+  ungroup() %>%
+  # Compute percentage of respondents
+  mutate(pct_respondents = num_respondents / total_respondents) %>%
+  # Reorder response values
+  mutate(Bias_incidents = factor(Bias_incidents,
+                                 levels = c("Never",
+                                            "Rarely",
+                                            "Sometimes",
+                                            "Often",
+                                            "Constantly"))) %>%
+  mutate(Bias_incidents_target = factor(Bias_incidents_target,
+                                        levels = c("Never",
+                                                   "Rarely",
+                                                   "Sometimes",
+                                                   "Often",
+                                                   "Constantly")))
+
+biasIncidentData$Religion[biasIncidentData$Religion == "Latter Day Saints/Mormon"] <- "LDS"
+biasIncidentData$Religion[biasIncidentData$Religion == "Spiritual but not religious"] <- "Spiritual"
+biasIncidentData <- biasIncidentData[-(98),]
+```
+
+```{r}
+biasIncidentData %>%
+    # Initialize plot
+  ggplot(aes(x = Bias_incidents_target,
+             y = pct_respondents,
+             fill = Bias_incidents)) +
+  facet_wrap(~Religion) +
+  # Add bars
+  geom_bar(stat = "identity", position = "dodge") +
+  # Add annotations for number of respondents in each bar
+  geom_text(aes(label = num_respondents),
+            position = position_dodge(width = 1)) +
+  # Stylize plot
+  scale_y_continuous(labels = percent) +
+  scale_fill_brewer(palette = "Dark2") +
+  labs(x = "How often have you been the target of bias incidents?",
+       y = "% of Respondents",
+       fill = "How often have you witnessed bias incidents\ndirected at groups or individuals?") +
+  theme_classic() +
+  theme(legend.position = "top",
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+```
+
+## How does religion relate to personal isolation?
+
+```{r}
+religionIsolationPersonal <- rawSurveyData %>%
+  # Filter data
+  filter(!is.na(Isolation_personal_identity)) %>%
+  filter(!is.na(Isolation_personal_identity)) %>%
+  filter(Isolation_personal_identity != "NR") %>%
+  filter(Isolation_personal_identity != "NR") %>%
+  filter(Isolation_personal_identity != "NR") %>%
+  separate_longer_delim(Religion, delim = ",") %>%
+  select(UNIQID, Religion, Isolation_personal_identity) %>%
+  group_by(Religion, Isolation_personal_identity) %>%
+  # Counts the unique items & arranges it from most to least
+  count(Religion, Isolation_personal_identity) %>%
+  arrange(desc(n))
+
+religionIsolationPersonal
+```
