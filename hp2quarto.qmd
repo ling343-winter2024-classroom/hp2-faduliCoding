@@ -1,5 +1,5 @@
 ---
-title: "Demographics of Linguists and Harassment"
+title: "Religions of Linguists and Harassment"
 author: "Fadil Al-Husseini"
 format: 
   html:
@@ -7,7 +7,10 @@ format:
 ---
 ## Introduction
 
+In this report, we will be analyzing data from the Survey of Linguists and Language Researchers. We will look at the relationship with religion, identity, and experiencing harassment and isolation.
+
 ## Setup
+
 ```{r}
 #| code-fold: true
 #| warning: false
@@ -29,20 +32,49 @@ library("readr")
 here::i_am("hp2quarto.qmd")
 ```
 
+We install and load the packages that will be used for our analysis. The here function is used to find the qmd file.
+
 ```{r}
 #| code-fold: true
 #| warning: false
-# CSV data is read into instance rawData
+# CSV data is read into instance rawSurveyData
 rawSurveyData <- read_csv(here("data/survey_of_linguists-r_ladies.csv"))
 ```
 
+CSV data is loaded in.
+
 ## Codebook
 
-CODEBOOK HERE
+```{r}
+#| echo: FALSE
+# Making a data frame with variable codebook information
+dataCodeBook <- data.frame(
+  Variable_Name = c("UNIQID", "GenderSN", "SexOrient_DC", "Religion", "Bias_incidents", "Bias_incidents_target", "Isolation_personal_identity"),
+  Data_Type = c("ID", "M/F/Other", "", "", "", "", ""),
+  Variable_Label = c("Unique Participant ID", "Participant Gender", "Participant Sexual Orientation", "Participant Religion", "Witnessed Bias?", "Experienced Bias?", "Isolated due to Identity?")
+)
 
-# Questions
+dataCodeBook %>%
+  gt() %>%
+  cols_label(Variable_Name = "Variable Name", Data_Type = "Data Type", Variable_Label = "Variable Label") %>%
+  tab_style(
+    style = cell_borders(
+      sides = c("top", "bottom"),
+      color = "black",
+      weight = px(1.5),
+      style = "solid"
+    ),
+    locations = cells_body()
+  )
+```
 
-## What are the highest ten religions that linguists follow?
+These are the relevant variables we will be working with for our analysis.
+
+## Questions
+
+### Which ten religions do most linguists follow?
+
+To find this out, we'll need to work with the UNIQID column and Religion column.
 
 ```{r}
 religionData <- rawSurveyData %>%
@@ -68,21 +100,31 @@ religionCount <- religionData %>%
 religionCount$Religion[religionCount$Religion == "Spiritual but not religious"] <- "Spiritual"
 religionCount$Religion[religionCount$Religion == "Latter Day Saints/Mormon"] <- "LDS"
   # Keeping column names short for graphing
+
+religionCount
 ```
+
+After we select the columns and ensure that multiple responses are separated, e.g. a participant selecting both Jewish and atheist, the data was counted and the standard deviation was calculated.
 
 ```{r}
 religionCount %>%
+  # Uses the Religion and reorders it by largest to smallest
   ggplot(aes(x = reorder(Religion, desc(n)), y = n)) + 
+  # Color and bar information
   geom_bar(stat="identity", fill = "#F9D48D") +
+  # Label information
   labs(
     title = "Religions of Linguists",
-    
   )+
   xlab("Religion") +
   ylab("Number of Linguists")
 ```
 
-## How does sexuality factor into this?
+Now, we use a bar graph to model the data, going from largest to smallest. With the survey data, we see most linguists are atheist, agnostic, Christian, Spiritual but not religious, Jewish, Catholic, Protestant, Buddhist, Muslim, or Latter Day Saint.
+
+### How does non-heterosexual orientation factor into this?
+
+We use a similar process, but filter out results with "Heterosexual" selected.
 
 ```{r}
 LGBTRData <- rawSurveyData %>%
@@ -90,7 +132,7 @@ LGBTRData <- rawSurveyData %>%
   select(UNIQID, Religion, SexOrient_DC) %>%
   # Separates the religion data by columns
   separate_longer_delim(Religion, delim = ",") %>%
-  # Remove no response, prefer not to answer, & You don't
+  # Remove no response, prefer not to answer, & You don't...
   filter(Religion != "NR" 
          & Religion != "Prefer not to answer") %>%
   filter(!str_detect(Religion, 'You don')) %>%
@@ -100,32 +142,58 @@ LGBTRData <- rawSurveyData %>%
   # Counts the unique items & arranges it from most to least
   count(Religion) %>%
   arrange(desc(n))
-  
+
+# Add standard deviation data
 LGBTReligionData <- LGBTRData %>%
   mutate(SD_data = sd(LGBTRData$n))
   
+# Join both tables
 bothData <- religionCount %>%
   left_join(LGBTReligionData, by = c("Religion" = "Religion")) %>%
   filter(!is.na(n.y))
 
+bothData
+```
+
+Now, we've created a table that includes the count and standard deviation of both the overall and non-heterosexual-only religion data.
+
+```{r}
 bothData %>%
-  ggplot(mapping = aes(x = Religion, y = n.y))+
-  geom_bar(stat = "identity", fill = "red") +
-  geom_errorbar(aes(ymin = (n.y - SD_data.y), ymax= (n.y+SD_data.y)), width=0.4, colour="green", alpha=0.9, size=1.3)+
+  ggplot(mapping = aes(x = Religion, y = n.x))+
+  geom_bar(stat = "identity", fill = "blue")+
+  geom_errorbar(aes(ymin = (n.x - SD_data.x), ymax= (n.x+SD_data.x)), width=0.4, colour="orange", alpha=0.9, linewidth=1.3)+
   labs(
     title = "Religions of Linguists",
     
   )+
   xlab("Religion") +
   ylab("Number of Linguists")
-
-bothData %>%
-  ggplot(mapping = aes(x = Religion, y = n.x))+
-  geom_bar(stat = "identity", fill = "blue")+
-  geom_errorbar(aes(ymin = (n.x - SD_data.x), ymax= (n.x+SD_data.x)), width=0.4, colour="orange", alpha=0.9, size=1.3)
 ```
 
-## How does religion relate to harassment?
+This plot includes both the number of linguists by religion and the error. There seems to be no statistical significance between the religions, except between atheism and non-agnosticism.
+
+```{r}
+bothData %>%
+  ggplot(mapping = aes(x = Religion, y = n.y))+
+  geom_bar(stat = "identity", fill = "red") +
+  geom_errorbar(aes(ymin = (n.y - SD_data.y), ymax= (n.y+SD_data.y)), width=0.4, colour="green", alpha=0.9, linewidth=1.3)+
+  labs(
+    title = "Religions of Queer Linguists",
+    
+  )+
+  xlab("Religion") +
+  ylab("Number of Linguists")
+```
+
+This plot includes both the number of queer linguists by religion and the error.
+
+Similar to the overall linguist plot, it seems that there is only a significant difference between linguists who identify as atheists and ones who don't identify as agnostic, e.g. Catholic, Muslim, et cetera. This seems to indicate that sexual orientation does not play a role in religious identity among linguists.
+
+For future work, more data on underrepresented religions may lead to more accurate results.
+
+### How does religion relate to harassment, both experiencing and seeing?
+
+To answer this question, we need to analyze religious data as it relates to observing bias incidents, experiencing bias incidents, and religion.
 
 ```{r}
 biasIncidentData <- rawSurveyData %>%
@@ -147,7 +215,7 @@ biasIncidentData <- rawSurveyData %>%
   ungroup() %>%
   # Compute percentage of respondents
   mutate(pct_respondents = num_respondents / total_respondents) %>%
-  # Reorder response values
+  # Make the responses into factors
   mutate(Bias_incidents = factor(Bias_incidents,
                                  levels = c("Never",
                                             "Rarely",
@@ -160,11 +228,15 @@ biasIncidentData <- rawSurveyData %>%
                                                    "Sometimes",
                                                    "Often",
                                                    "Constantly")))
-
+# Rename LDS and Spiritual
 biasIncidentData$Religion[biasIncidentData$Religion == "Latter Day Saints/Mormon"] <- "LDS"
 biasIncidentData$Religion[biasIncidentData$Religion == "Spiritual but not religious"] <- "Spiritual"
+# Remove NA value
 biasIncidentData <- biasIncidentData[-(98),]
+
+biasIncidentData
 ```
+This tibble contains the religion, experience of harassment, observation of harassment, and the percentage from the respondents and total.
 
 ```{r}
 biasIncidentData %>%
@@ -191,22 +263,68 @@ biasIncidentData %>%
         axis.ticks.x = element_blank())
 ```
 
-## How does religion relate to personal isolation?
+Using the above data, we create this plot. The bar-groupings represent how often one has been a target of bias incidents.
+
+We see that, across the data, there seems to be a trend wherein those who haven't observed much harassment also tend not to experience harassment. This could be due to a multitude of factors: a person may not be able to identify harassment with others, making it more difficult to identify harassment against themselves; the environment may be safer, meaning no one experiences harassment in their workplace; et cetera.
+
+It also seems that religion does not play a large role in harassment based on the presented data. As with the second question, having more data would allow us to make better predictions on the role of religion with harassment.
+
+### How does religion relate to personal isolation?
+
+Similar to the data above, we will look at responses for personal isolation as it relates to religion.
 
 ```{r}
 religionIsolationPersonal <- rawSurveyData %>%
-  # Filter data
+  # Filter NA data
   filter(!is.na(Isolation_personal_identity)) %>%
-  filter(!is.na(Isolation_personal_identity)) %>%
+  filter(!is.na(Religion)) %>%
+  # Filter out no response
   filter(Isolation_personal_identity != "NR") %>%
-  filter(Isolation_personal_identity != "NR") %>%
-  filter(Isolation_personal_identity != "NR") %>%
+  # Create more rows in the case of multiple responses
   separate_longer_delim(Religion, delim = ",") %>%
-  select(UNIQID, Religion, Isolation_personal_identity) %>%
+  # Remove "Prefer not to Answer" and "NR"
+  filter(Religion != "NR" & Religion != "Prefer not to answer") %>%
+  # Remove 'other'
+  filter(!str_detect(Religion, 'You don')) %>%
+  # Select needed data
+  select(UNIQID, Religion, Isolation_personal_identity)
+
+# Group together 'Yes'
+religionIsolationPersonal$Isolation_personal_identity[religionIsolationPersonal$Isolation_personal_identity == "Yes, I have been intentionally excluded"] <- "Yes"
+religionIsolationPersonal$Isolation_personal_identity[religionIsolationPersonal$Isolation_personal_identity == "Yes, I have been excluded (perhaps intentionally)"] <- "Yes"
+religionIsolationPersonal$Isolation_personal_identity[religionIsolationPersonal$Isolation_personal_identity == "Yes (other)"] <- "Yes"
+# Rename LDS and Spiritual
+religionIsolationPersonal$Religion[religionIsolationPersonal$Religion == "Latter Day Saints/Mormon"] <- "LDS"
+religionIsolationPersonal$Religion[religionIsolationPersonal$Religion == "Spiritual but not religious"] <- "Spiritual"
+
+# Group by the isolation response, religion, and count
+religionIsoPData <- religionIsolationPersonal %>%
   group_by(Religion, Isolation_personal_identity) %>%
   # Counts the unique items & arranges it from most to least
-  count(Religion, Isolation_personal_identity) %>%
-  arrange(desc(n))
+  count(Religion, Isolation_personal_identity)
 
-religionIsolationPersonal
+religionIsoPData
 ```
+
+Here we see that the tibble is organized by the religion and response regarding isolation. Those responses are then counted and grouped.
+
+```{r}
+religionIsoPData %>%
+    # Initialize plot
+  ggplot(aes(x = Isolation_personal_identity,
+             y = n)) +
+  facet_wrap(~Religion) +
+  # Add bars
+  geom_bar(stat = "identity", position = "dodge") +
+  xlab("Have you experienced personal isolation due to your identity?") +
+  ylab("Number of Respondents")
+```
+Now, we graph the data using a bar graph. It seems that overall, the trend is similar regardless of religion. This data agrees with the data from the third question, as it seems to indicate that religious harassment is not occurring in linguist workplaces.
+
+## Conclusion
+
+We expected that irreligiousness would be the most common among linguists, and indeed that seems to be the most frequent. Following that, we also see many linguists follow Catholicism, Christianity, Judaism, Islam, et cetera. It was also established that there is no significant correlation between sexual orientation and religious identity as it pertains to linguists. 
+
+Lastly, we looked at both biased incidents and personal isolation regarding religion. With both analyses, the data seems to indicate no strong correlation with religion and harassment and isolation.
+
+For further reporters, more data on underrepresented religions may give us a better idea of harassment and isolation. In addition to that, questions that focus more on religious biases and inquiries may produce more reliable results, rather than focusing on identity generally.
