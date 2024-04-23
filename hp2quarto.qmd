@@ -122,7 +122,7 @@ religionCount %>%
 
 Now, we use a bar graph to model the data, going from largest to smallest. With the survey data, we see most linguists are atheist, agnostic, Christian, Spiritual but not religious, Jewish, Catholic, Protestant, Buddhist, Muslim, or Latter Day Saint.
 
-### How does non-heterosexual orientation factor into this?
+### How does sexual orientation factor into this?
 
 We use a similar process, but filter out results with "Heterosexual" selected.
 
